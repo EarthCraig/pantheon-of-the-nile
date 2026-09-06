@@ -1,10 +1,14 @@
 {
   "name": "pantheon-of-the-nile",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "start": "serve -s . -l tcp://0.0.0.0:${PORT:-3000}"
+    "start": "node server.js"
   },
   "dependencies": {
-    "serve": "^14.2.3"
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
   }
 }
