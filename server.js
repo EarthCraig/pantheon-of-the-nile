@@ -30,6 +30,10 @@ const pool = connectionString
 // Fallback so the site still works locally without a database. slug -> [records]
 const memory = new Map();
 
+// Set when initDb() fails. The server still starts so the static site stays up,
+// but /api/health reports the failure and claim endpoints refuse to run.
+let dbInitError = null;
+
 async function initDb() {
   if (!pool) {
     console.warn('[claims] No DATABASE_URL set — claims are in memory and will be lost on restart.');
@@ -83,12 +87,24 @@ function joinNames(names) {
 /* ---------- api ---------- */
 
 app.get('/api/health', async (_req, res) => {
+  if (dbInitError) {
+    return res
+      .status(503)
+      .json({ ok: false, storage: 'postgres', places: MAX_CLAIMS, error: 'Database setup failed' });
+  }
   try {
     if (pool) await pool.query('SELECT 1');
     res.json({ ok: true, storage: pool ? 'postgres' : 'memory', places: MAX_CLAIMS });
   } catch (err) {
     res.status(500).json({ ok: false, error: 'Database unreachable' });
   }
+});
+
+// Refuse claim operations when the schema never initialised, rather than
+// failing later with confusing errors from a missing table or index.
+app.use('/api/claims', (_req, res, next) => {
+  if (dbInitError) return res.status(503).json({ error: 'Database setup failed.' });
+  next();
 });
 
 app.get('/api/claims', async (_req, res) => {
@@ -240,7 +256,10 @@ app.use(express.static(__dirname, { extensions: ['html'] }));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 initDb()
-  .catch((err) => console.error('[claims] Database setup failed', err))
+  .catch((err) => {
+    dbInitError = err;
+    console.error('[claims] Database setup failed', err);
+  })
   .finally(() => {
     app.listen(PORT, '0.0.0.0', () => console.log(`Pantheon listening on ${PORT}`));
   });
