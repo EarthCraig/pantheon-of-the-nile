@@ -296,18 +296,6 @@
   }
   .claim-form input::placeholder{color:var(--muted)}
   .claim-form input:focus{outline:none;border-color:var(--accent, var(--gold))}
-  .claim-cancel{
-    font-family:var(--font-label);
-    font-size:11px;
-    letter-spacing:.16em;
-    text-transform:uppercase;
-    color:var(--muted);
-    background:transparent;
-    border:1px solid transparent;
-    padding:9px 8px;
-    cursor:pointer;
-  }
-  .claim-cancel:hover, .claim-cancel:focus-visible{color:var(--sand);outline:none}
   .claim-note{
     margin:0;
     font-family:var(--font-label);
@@ -975,14 +963,10 @@
     var wrap = document.createElement('div');
     wrap.className = 'claim';
 
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'claim-btn';
-    button.textContent = 'Claim ' + name;
-
+    // The name box and Claim button sit directly on the card; there is no
+    // separate trigger button. The form disappears once every place is taken.
     var form = document.createElement('form');
     form.className = 'claim-form';
-    form.hidden = true;
     form.noValidate = true;
 
     var input = document.createElement('input');
@@ -998,19 +982,12 @@
     confirm.className = 'claim-btn';
     confirm.textContent = 'Claim';
 
-    var cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'claim-cancel';
-    cancel.textContent = 'Cancel';
-
     var note = document.createElement('p');
     note.className = 'claim-note';
     note.hidden = true;
 
     form.appendChild(input);
     form.appendChild(confirm);
-    form.appendChild(cancel);
-    wrap.appendChild(button);
     wrap.appendChild(form);
     wrap.appendChild(note);
     article.appendChild(wrap);
@@ -1019,7 +996,6 @@
       slug: slugify(name),
       name: name,
       article: article,
-      button: button,
       form: form,
       input: input,
       confirm: confirm,
@@ -1027,18 +1003,6 @@
       names: [],
       locked: preTaken // marked Taken directly in the HTML, no names attached
     };
-
-    button.addEventListener('click', function () {
-      form.hidden = false;
-      button.hidden = true;
-      input.focus();
-    });
-
-    cancel.addEventListener('click', function () {
-      form.hidden = true;
-      input.value = '';
-      render(card);
-    });
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
@@ -1069,8 +1033,7 @@
     card.article.classList.toggle('taken', full);
     setStamp(card.article, full);
 
-    card.form.hidden = true;
-    card.button.hidden = full;
+    card.form.hidden = full;
     card.note.className = 'claim-note';
 
     if (card.locked && !names.length) {
@@ -1174,8 +1137,9 @@
           var names = bySlug[card.slug] || [];
           if (sameNames(names, card.names)) return;
           card.names = names;
-          // don't yank the form out from under someone mid-type
-          if (card.form.hidden) render(card);
+          // render() never touches the input, so a half-typed name survives;
+          // the form only goes away when every place is genuinely taken.
+          render(card);
         });
       })
       .catch(function () {
