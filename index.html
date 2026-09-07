@@ -26,6 +26,8 @@
     --font-body:'Alegreya', Georgia, serif;
     --font-label:'Jost', 'Futura', 'Century Gothic', sans-serif;
   }
+  /* The hidden attribute must win over display:flex on .claim-form and friends. */
+  [hidden]{display:none !important}
   html{scroll-behavior:smooth}
   @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
   body{
