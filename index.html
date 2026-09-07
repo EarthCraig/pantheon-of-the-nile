@@ -302,6 +302,7 @@
     color:var(--sand);
     border:1px solid var(--line);
     padding:28px 28px 24px;
+    box-sizing:border-box; /* width includes the padding, so it never exceeds the viewport on small phones */
     width:min(440px, calc(100% - 40px));
     box-shadow:0 30px 80px rgba(0,0,0,.6);
   }
