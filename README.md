@@ -41,7 +41,7 @@ page reads the number back from the API, so nothing else needs touching.
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/api/claims` | All claims, plus the places-per-god number |
-| `POST` | `/api/claims` | `{ god_slug, god_name, claimed_by }` — 409 when full or when that name already holds the god |
+| `POST` | `/api/claims` | `{ god_slug, god_name, claimed_by, mushrooms }` — `mushrooms` is the Yes/No answer (`true`/`false`, required); 409 when full or when that name already holds the god |
 | `DELETE` | `/api/claims/:slug` | Release claims, needs `x-admin-token` header |
 | `GET` | `/api/health` | Reports whether Postgres is reachable |
 
@@ -61,6 +61,7 @@ CREATE TABLE claims (
   god_name   TEXT NOT NULL,
   claimed_by TEXT NOT NULL,
   slot       SMALLINT,          -- 1 or 2
+  mushrooms  BOOLEAN,           -- "Do you want to partake in the magic mushrooms?"
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

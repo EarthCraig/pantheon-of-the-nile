@@ -296,6 +296,24 @@
   }
   .claim-form input::placeholder{color:var(--muted)}
   .claim-form input:focus{outline:none;border-color:var(--accent, var(--gold))}
+  .claim-q{
+    flex-basis:100%;
+    display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;
+    font-family:var(--font-label);
+    font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .claim-q-text{flex-basis:100%}
+  .claim-q label{display:inline-flex;align-items:center;gap:7px;cursor:pointer;color:var(--sand)}
+  .claim-q input[type=radio]{
+    flex:none;width:16px;height:16px;margin:0;
+    accent-color:var(--accent, var(--gold));
+  }
+  /* .claim-form input:focus drops the outline for the text box; radios need it back. */
+  .claim-q input[type=radio]:focus-visible{
+    outline:2px solid var(--sand);
+    outline-offset:2px;
+  }
   .claim-note{
     margin:0;
     font-family:var(--font-label);
@@ -977,6 +995,27 @@
     input.placeholder = 'Your name';
     input.setAttribute('aria-label', 'Your name, to claim ' + name);
 
+    // One extra question per claim, answered with Yes or No.
+    var question = document.createElement('div');
+    question.className = 'claim-q';
+    question.setAttribute('role', 'group');
+    var questionText = document.createElement('span');
+    questionText.className = 'claim-q-text';
+    questionText.id = 'mushrooms-q-' + slugify(name);
+    questionText.textContent = 'Do you want to partake in the magic mushrooms?';
+    question.setAttribute('aria-labelledby', questionText.id);
+    question.appendChild(questionText);
+    ['Yes', 'No'].forEach(function (answer) {
+      var label = document.createElement('label');
+      var radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'mushrooms-' + slugify(name);
+      radio.value = answer.toLowerCase();
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(answer));
+      question.appendChild(label);
+    });
+
     var confirm = document.createElement('button');
     confirm.type = 'submit';
     confirm.className = 'claim-btn';
@@ -987,6 +1026,7 @@
     note.hidden = true;
 
     form.appendChild(input);
+    form.appendChild(question);
     form.appendChild(confirm);
     wrap.appendChild(form);
     wrap.appendChild(note);
@@ -998,6 +1038,7 @@
       article: article,
       form: form,
       input: input,
+      question: question,
       confirm: confirm,
       note: note,
       names: [],
@@ -1074,6 +1115,11 @@
       card.input.focus();
       return;
     }
+    var answer = card.question.querySelector('input:checked');
+    if (!answer) {
+      showError(card, 'Answer the magic mushrooms question to claim ' + card.name + '.');
+      return;
+    }
 
     card.confirm.disabled = true;
     card.confirm.textContent = 'Claiming';
@@ -1085,7 +1131,8 @@
       body: JSON.stringify({
         god_slug: card.slug,
         god_name: card.name,
-        claimed_by: value
+        claimed_by: value,
+        mushrooms: answer.value === 'yes'
       })
     })
       .then(function (response) {
@@ -1097,6 +1144,7 @@
         if (result.ok) {
           card.names = result.data.claimed_by_all || card.names.concat([value]);
           card.input.value = '';
+          card.question.querySelectorAll('input').forEach(function (r) { r.checked = false; });
           render(card);
           return;
         }

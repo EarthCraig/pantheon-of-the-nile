@@ -49,6 +49,7 @@ async function initDb() {
 
   // Migrate a database created by the earlier one-claim-per-god schema.
   await pool.query('ALTER TABLE claims ADD COLUMN IF NOT EXISTS slot SMALLINT;');
+  await pool.query('ALTER TABLE claims ADD COLUMN IF NOT EXISTS mushrooms BOOLEAN;');
   await pool.query('UPDATE claims SET slot = 1 WHERE slot IS NULL;');
   await pool.query('ALTER TABLE claims DROP CONSTRAINT IF EXISTS claims_god_slug_key;');
   await pool.query(
@@ -68,6 +69,17 @@ const SLUG_RE = /^[a-z0-9-]{1,64}$/;
 function cleanName(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+// The magic mushrooms answer. Accepts true/false, "yes"/"no", "true"/"false";
+// anything else counts as unanswered (null).
+function parseYesNo(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return null;
+  const v = value.trim().toLowerCase();
+  if (v === 'yes' || v === 'true') return true;
+  if (v === 'no' || v === 'false') return false;
+  return null;
 }
 
 function listNames(records) {
@@ -99,7 +111,7 @@ app.get('/api/claims', async (_req, res) => {
       return res.json({ claims: flat, places: MAX_CLAIMS });
     }
     const { rows } = await pool.query(
-      `SELECT god_slug, god_name, claimed_by, slot, created_at
+      `SELECT god_slug, god_name, claimed_by, slot, mushrooms, created_at
        FROM claims
        ORDER BY god_slug ASC, slot ASC`
     );
@@ -114,12 +126,16 @@ app.post('/api/claims', async (req, res) => {
   const godSlug = typeof req.body.god_slug === 'string' ? req.body.god_slug.trim() : '';
   const godName = cleanName(req.body.god_name);
   const claimedBy = cleanName(req.body.claimed_by);
+  const mushrooms = parseYesNo(req.body.mushrooms);
 
   if (!SLUG_RE.test(godSlug) || !godName) {
     return res.status(400).json({ error: 'Unknown god.' });
   }
   if (claimedBy.length < 2) {
     return res.status(400).json({ error: 'Enter your name to claim.' });
+  }
+  if (mushrooms === null) {
+    return res.status(400).json({ error: 'Answer the magic mushrooms question to claim.' });
   }
 
   try {
@@ -142,6 +158,7 @@ app.post('/api/claims', async (req, res) => {
         god_name: godName,
         claimed_by: claimedBy,
         slot: existing.length + 1,
+        mushrooms,
         created_at: new Date().toISOString(),
       };
       memory.set(godSlug, existing.concat([record]));
@@ -155,8 +172,8 @@ app.post('/api/claims', async (req, res) => {
     let inserted = null;
     for (let attempt = 0; attempt <= MAX_CLAIMS && !inserted; attempt++) {
       const { rows } = await pool.query(
-        `INSERT INTO claims (god_slug, god_name, claimed_by, slot)
-         SELECT $1, $2, $3, s.slot
+        `INSERT INTO claims (god_slug, god_name, claimed_by, slot, mushrooms)
+         SELECT $1, $2, $3, s.slot, $5::boolean
          FROM generate_series(1, $4) AS s(slot)
          WHERE NOT EXISTS (
            SELECT 1 FROM claims c WHERE c.god_slug = $1 AND c.slot = s.slot
@@ -164,8 +181,8 @@ app.post('/api/claims', async (req, res) => {
          ORDER BY s.slot
          LIMIT 1
          ON CONFLICT DO NOTHING
-         RETURNING god_slug, god_name, claimed_by, slot, created_at`,
-        [godSlug, godName, claimedBy, MAX_CLAIMS]
+         RETURNING god_slug, god_name, claimed_by, slot, mushrooms, created_at`,
+        [godSlug, godName, claimedBy, MAX_CLAIMS, mushrooms]
       );
       if (rows.length) inserted = rows[0];
     }
