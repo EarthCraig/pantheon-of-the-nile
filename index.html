@@ -1169,13 +1169,17 @@
 
   // Resolves true (Yes), false (No) or null (dismissed).
   function askMushrooms(card, value) {
-    if (!mush) mush = buildMushDialog();
-    if (typeof mush.dialog.showModal !== 'function') {
-      // Very old browsers without <dialog>: fall back to a plain confirm.
+    // Very old browsers without <dialog>: fall back to a plain confirm and
+    // never build the styled dialog, which they could not hide or close.
+    if (
+      typeof window.HTMLDialogElement !== 'function' ||
+      typeof window.HTMLDialogElement.prototype.showModal !== 'function'
+    ) {
       return Promise.resolve(
         window.confirm('Do you want to partake in the magic mushrooms?')
       );
     }
+    if (!mush) mush = buildMushDialog();
     return new Promise(function (resolve) {
       mushPending = resolve;
       mush.eyebrow.textContent = 'Claiming ' + card.name + ' as ' + value;
