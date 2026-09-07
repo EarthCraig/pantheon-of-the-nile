@@ -30,6 +30,31 @@ const pool = connectionString
 // Fallback so the site still works locally without a database. slug -> [records]
 const memory = new Map();
 
+// Schema setup state. The server starts even if setup fails so the static site
+// stays up, but /api/health reports the failure and claim endpoints refuse to
+// run. Setup is retried on the next request, so a transient outage at boot does
+// not permanently disable claims.
+let dbReady = !pool; // memory mode needs no setup
+let dbSetup = null; // in-flight initDb() promise, shared by concurrent requests
+
+function ensureDb() {
+  if (dbReady) return Promise.resolve();
+  if (!dbSetup) {
+    dbSetup = initDb()
+      .then(() => {
+        dbReady = true;
+      })
+      .catch((err) => {
+        console.error('[claims] Database setup failed', err);
+        throw err;
+      })
+      .finally(() => {
+        dbSetup = null;
+      });
+  }
+  return dbSetup;
+}
+
 async function initDb() {
   if (!pool) {
     console.warn('[claims] No DATABASE_URL set — claims are in memory and will be lost on restart.');
@@ -83,12 +108,29 @@ function joinNames(names) {
 /* ---------- api ---------- */
 
 app.get('/api/health', async (_req, res) => {
+  const storage = pool ? 'postgres' : 'memory';
   try {
+    await ensureDb();
     if (pool) await pool.query('SELECT 1');
-    res.json({ ok: true, storage: pool ? 'postgres' : 'memory', places: MAX_CLAIMS });
+    res.json({ ok: true, storage, places: MAX_CLAIMS });
   } catch (err) {
-    res.status(500).json({ ok: false, error: 'Database unreachable' });
+    const setupFailed = !dbReady;
+    res.status(setupFailed ? 503 : 500).json({
+      ok: false,
+      storage,
+      places: MAX_CLAIMS,
+      error: setupFailed ? 'Database setup failed' : 'Database unreachable',
+    });
   }
+});
+
+// Make sure the schema exists before any claim operation, retrying setup if it
+// failed earlier, rather than failing later against a missing table or index.
+app.use('/api/claims', (_req, res, next) => {
+  ensureDb().then(
+    () => next(),
+    () => res.status(503).json({ error: 'Database setup failed.' })
+  );
 });
 
 app.get('/api/claims', async (_req, res) => {
@@ -239,8 +281,8 @@ app.delete('/api/claims/:slug', async (req, res) => {
 app.use(express.static(__dirname, { extensions: ['html'] }));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-initDb()
-  .catch((err) => console.error('[claims] Database setup failed', err))
+(pool ? ensureDb() : initDb())
+  .catch(() => {})
   .finally(() => {
     app.listen(PORT, '0.0.0.0', () => console.log(`Pantheon listening on ${PORT}`));
   });
