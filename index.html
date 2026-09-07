@@ -309,6 +309,11 @@
     flex:none;width:16px;height:16px;margin:0;
     accent-color:var(--accent, var(--gold));
   }
+  /* .claim-form input:focus drops the outline for the text box; radios need it back. */
+  .claim-q input[type=radio]:focus-visible{
+    outline:2px solid var(--sand);
+    outline-offset:2px;
+  }
   .claim-note{
     margin:0;
     font-family:var(--font-label);
